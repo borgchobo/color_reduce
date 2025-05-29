@@ -15,7 +15,7 @@ step_ranges = [30, 30, 100, 100]
 
 # 各段階ごとの色ビット数（step_rangesと長さを合わせる）
 # 例: [6, 4, 3, 2]
-step_bits = [1, 1, 1, 1]
+step_bits = [6, 4, 3, 2]
 
 # 距離マップ
 Y, X = np.ogrid[:height, :width]
