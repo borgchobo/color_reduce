@@ -4,44 +4,46 @@ import numpy as np
 # 入力画像（imageフォルダー内のinput.jpgを指定）
 img = cv2.imread('image/input.jpg')
 height, width = img.shape[:2]
-center = (width // 2, height // 2)
+
+# 円の中心座標を指定
+center_x = 500  # 例: 100
+center_y = 500  # 例: 150
+center = (center_x, center_y)
 
 # 円の内側半径
 radius = min(width, height) // 4
 
-# 各段階の幅をリストで指定（ピクセル単位）
-# 例: [30, 50, 80, 100]なら、中心円→+30→さらに+50→さらに+80→さらに+100
-step_ranges = [30, 30, 100, 100]
+# 階調数（2～256の任意の自然数）
+level = 2  # 例: 8階調
 
-# 各段階ごとの色ビット数（step_rangesと長さを合わせる）
-# 例: [6, 4, 3, 2]
-step_bits = [6, 4, 3, 2]
+# 境界幅（ピクセル単位、例: 30）
+border_width = 100
 
-# 距離マップ
+# 減色処理を行う半径を調整
+radius_blend = radius - border_width / 2
+
+# マスクの作成
 Y, X = np.ogrid[:height, :width]
-dist_map = np.sqrt((X - center[0])**2 + (Y - center[1])**2)
+dist_from_center = np.sqrt((X - center[0])**2 + (Y - center[1])**2)
+mask_inside = dist_from_center < radius_blend
+mask_border = (dist_from_center >= radius_blend) & (dist_from_center < radius_blend + border_width)
+
+# 減色処理
+step = 256 // level
+reduced = np.clip(np.round(img / step) * step, 0, 255).astype(np.uint8)
 
 # 結果画像の初期化
 result = img.copy()
+result[mask_inside] = reduced[mask_inside]
 
-# 各段階ごとに処理
-inner = radius
-for width_px, bits in zip(step_ranges, step_bits):
-    outer = inner + width_px
-    mask = (dist_map >= inner) & (dist_map < outer)
-    reduced = ((img >> (8 - bits)) << (8 - bits))
-    result[mask] = reduced[mask]
-    inner = outer
-
-# 最外周（最後のouterより外側）も最終bitsで減色
-mask_outside = dist_map >= inner
-bits = step_bits[-1]
-reduced = ((img >> (8 - bits)) << (8 - bits))
-result[mask_outside] = reduced[mask_outside]
-
-# 円内は元画像そのまま
-mask_inside = dist_map < radius
-result[mask_inside] = img[mask_inside]
+# 境界領域のブレンド
+alpha = np.zeros_like(dist_from_center, dtype=np.float32)
+alpha[mask_border] = 1.0 - (dist_from_center[mask_border] - radius_blend) / border_width
+alpha[mask_border] = np.clip(alpha[mask_border], 0, 1)
+result[mask_border] = (
+    alpha[mask_border, None] * reduced[mask_border] +
+    (1 - alpha[mask_border, None]) * img[mask_border]
+).astype(np.uint8)
 
 # 結果画像をimageフォルダー内に保存
 cv2.imwrite('image/output_custom_ranges.png', result)
